@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML/CSS ライブプレビュー (ZIP保存対応)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: #1e1e1e;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 8px 16px;
+      background-color: #252526;
+      border-bottom: 1px solid #3c3c3c;
+      font-size: 14px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-size: 12px;
+      background: #0e639c;
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: #fff;
+      font-weight: normal;
+    }
+
+    /* ★ ZIPダウンロードボタン */
+    .download-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .download-btn:hover {
+      background-color: #218838;
+    }
+
+    .download-btn:active {
+      transform: scale(0.97);
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 左側：エディタ */
+    .editor-pane {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #3c3c3c;
+    }
+
+    .editor-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .editor-section:first-child {
+      border-bottom: 2px solid #3c3c3c;
+    }
+
+    .editor-title {
+      padding: 6px 15px;
+      background-color: #2d2d2d;
+      font-size: 12px;
+      font-weight: bold;
+      color: #cccccc;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #3c3c3c;
+    }
+
+    .editor-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    /* 右側：プレビュー */
+    .preview-pane {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      background-color: #ffffff;
+    }
+
+    .preview-title {
+      padding: 6px 15px;
+      background-color: #f3f3f3;
+      color: #333;
+      font-size: 12px;
+      font-weight: bold;
+      border-bottom: 1px solid #ddd;
+    }
+
+    iframe {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background-color: #ffffff;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+      .editor-pane, .preview-pane {
+        width: 100%;
+        height: 50%;
+      }
+      .editor-pane {
+        border-right: none;
+        border-bottom: 2px solid #3c3c3c;
+      }
+    }
+  </style>
+
+  <!-- Monaco Editor (VS Code エンジン) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <!-- JSZip (ZIPファイル作成ライブラリ) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <span>HTML / CSS ライブエディタ</span>
+      <span class="badge">高精度補完 / 自動改行 / 自動閉じ</span>
+    </div>
+    <button id="download-zip" class="download-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      ZIPダウンロード
+    </button>
+  </header>
+
+  <div class="container">
+    <div class="editor-pane">
+      <div class="editor-section">
+        <div class="editor-title">HTML</div>
+        <div id="html-editor" class="editor-container"></div>
+      </div>
+
+      <div class="editor-section">
+        <div class="editor-title">CSS</div>
+        <div id="css-editor" class="editor-container"></div>
+      </div>
+    </div>
+
+    <div class="preview-pane">
+      <div class="preview-title">PREVIEW</div>
+      <iframe id="preview"></iframe>
+    </div>
+  </div>
+
+  <script>
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      const initialHtml = `<div class="card">
+  <h2>こんにちは！</h2>
+  <p>上の「ZIPダウンロード」ボタンを押すと、即座に index.html と style.css をZIPにまとめて保存できます。</p>
+  <button>ボタン</button>
+</div>`;
+
+      const initialCss = `body {
+  font-family: sans-serif;
+  padding: 20px;
+  background-color: #f5f7fa;
+}
+
+.card {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  max-width: 320px;
+}
+
+h2 {
+  color: #333;
+  margin-top: 0;
+}
+
+p {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+button {
+  background-color: #007acc;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #005999;
+}`;
+
+      // HTML エディタ
+      const htmlEditor = monaco.editor.create(document.getElementById('html-editor'), {
+        value: initialHtml,
+        language: 'html',
+        theme: 'vs-dark',
+        wordWrap: 'on',                 // 自動改行
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 14,
+        autoClosingBrackets: 'always',
+        autoClosingQuotes: 'always',
+        suggestOnTriggerCharacters: true
+      });
+
+      // CSS エディタ
+      const cssEditor = monaco.editor.create(document.getElementById('css-editor'), {
+        value: initialCss,
+        language: 'css',
+        theme: 'vs-dark',
+        wordWrap: 'on',                 // 自動改行
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 14,
+        autoClosingBrackets: 'always',
+        autoClosingQuotes: 'always',
+        suggestOnTriggerCharacters: true
+      });
+
+      // 閉じタグが不要なタグ一覧
+      const voidTags = new Set([
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img',
+        'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
+      ]);
+
+      // タグ自動閉じ機能（> を打ったら </tag> を生成）
+      htmlEditor.onDidChangeModelContent((event) => {
+        event.changes.forEach((change) => {
+          if (change.text === '>') {
+            const position = htmlEditor.getPosition();
+            const model = htmlEditor.getModel();
+            const lineContent = model.getLineContent(position.lineNumber);
+            const textBeforeCursor = lineContent.substring(0, position.column - 1);
+
+            if (textBeforeCursor.endsWith('/>')) return;
+
+            const match = textBeforeCursor.match(/<([a-zA-Z0-9\-]+)(?:\s+[^>]*)?>$/);
+            if (match) {
+              const tagName = match[1].toLowerCase();
+              if (!voidTags.has(tagName)) {
+                const closeTag = `</${tagName}>`;
+                htmlEditor.executeEdits('auto-close-tag', [{
+                  range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                  text: closeTag,
+                  forceMoveMarkers: false
+                }]);
+                htmlEditor.setPosition(position);
+              }
+            }
+          }
+        });
+      });
+
+      const preview = document.getElementById('preview');
+
+      // プレビュー反映
+      function updatePreview() {
+        const html = htmlEditor.getValue();
+        const css = cssEditor.getValue();
+
+        preview.srcdoc = `
+          <!DOCTYPE html>
+          <html lang="ja">
+          <head>
+            <meta charset="UTF-8">
+            <style>${css}</style>
+          </head>
+          <body>
+            ${html}
+          </body>
+          </html>
+        `;
+      }
+
+      htmlEditor.onDidChangeModelContent(updatePreview);
+      cssEditor.onDidChangeModelContent(updatePreview);
+      updatePreview();
+
+      // ★ ZIPダウンロード処理
+      const downloadBtn = document.getElementById('download-zip');
+      downloadBtn.addEventListener('click', () => {
+        const zip = new JSZip();
+        const html = htmlEditor.getValue();
+        const css = cssEditor.getValue();
+
+        // index.html 用に成形（style.cssを読み込むタグを自動調整）
+        let finalHtml = html;
+        if (!html.toLowerCase().includes('<html')) {
+          // 部分的なコードだけが書かれていた場合は標準的なHTML枠組みで包む
+          finalHtml = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Web Page</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+${html}
+</body>
+</html>`;
+        } else if (!finalHtml.includes('style.css')) {
+          // すでに <html> が書かれていて style.css の読み込みがない場合は head 内に挿入
+          if (finalHtml.includes('</head>')) {
+            finalHtml = finalHtml.replace('</head>', '  <link rel="stylesheet" href="style.css">\n</head>');
+          } else {
+            finalHtml = finalHtml.replace(/<body[^>]*>/i, '<head>\n  <link rel="stylesheet" href="style.css">\n</head>\n$&');
+          }
+        }
+
+        // ファイルを追加
+        zip.file("index.html", finalHtml);
+        zip.file("style.css", css);
+
+        // ZIPを作成して即座にダウンロード
+        zip.generateAsync({ type: "blob" }).then(function (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "web-project.zip";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
